@@ -7,7 +7,8 @@ This is a project for a mode which allows one to take notes while reading a pdf.
 This project is in development as the code currently only exists as a hack to my personal emacs configuration.
 
 * TODOS
-- [ ] Rename functions so it doesn't follow my personal standard
+- [X] Rename functions so it doesn't follow my personal standard
+- [ ] Test if renaming works
 - [ ] Remove window switching depending on the evil package
 - [ ] Make window switching not be dependent on pdf being on the left (and instead have it look for pdf window)
 - [ ] Replace org roam dependency or include it formally
@@ -17,7 +18,7 @@ This project is in development as the code currently only exists as a hack to my
 
 ** Apollo regex search in string
 #+begin_src emacs-lisp
-(defun apollo/re-seq (regexp string)
+(defun org-notes/re-seq (regexp string)
   "Get a list of all regexp matches in a string"
   (save-match-data
     (let ((pos 0)
@@ -29,7 +30,7 @@ This project is in development as the code currently only exists as a hack to my
 #+end_src
 
 #+RESULTS:
-: apollo/re-seq
+: org-notes/re-seq
 
 
 
@@ -412,7 +413,7 @@ I should probably narrow at the end, but I copied this method from set-pdf-scale
 			       0
 			       (ivy-read
 				"select link: "
-				(apollo/re-seq
+				(org-notes/re-seq
 				 apollo/org-notes/linkreg
 				 (buffer-string)))))))))
       (setq apollo/org-notes/before-link-point (point))
@@ -811,4 +812,804 @@ Progress variable
 	   (apollo/org-notes/previous-point)
 	 (previous-buffer)))
 #+end_src
+
+* Functions renamed
+
+** Apollo regex search in string
+#+begin_src emacs-lisp
+(defun org-notes/re-seq (regexp string)
+  "Get a list of all regexp matches in a string"
+  (save-match-data
+    (let ((pos 0)
+          matches)
+      (while (string-match regexp string pos)
+        (push (match-string 0 string) matches)
+        (setq pos (match-end 0)))
+      matches)))
+#+end_src
+
+#+RESULTS:
+: org-notes/re-seq
+
+
+
+** Regex variables
+#+begin_src emacs-lisp
+(setq org-notes/linkreg "\\[\\[[a-zåäöA-ZÅÄÖ0-9 -: / + ~]*\\]\\[[a-zåäöA-ZÅÄÖ0-9 -:  / + ~]*\\]\\]")
+#+end_src
+
+
+** Pdf controll
+
+*** Scroll backward
+#+begin_src emacs-lisp
+(defun org-notes/scroll-backward () (interactive)
+(let ((win-num (winum-get-number)))
+	    (evil-window-left 1)
+      (evil-collection-pdf-view-previous-line-or-previous-page)
+	    (winum-select-window-by-number win-num))
+       )
+#+end_src
+
+#+RESULTS:
+: org-notes/scroll-backward
+
+*** Scroll forward
+#+begin_src emacs-lisp
+(defun org-notes/scroll-forward () (interactive)
+(let ((win-num (winum-get-number)))
+	    (evil-window-left 1)
+      (evil-collection-pdf-view-next-line-or-next-page)
+	    (winum-select-window-by-number win-num))
+       )
+#+end_src
+
+#+RESULTS:
+: org-notes/scroll-forward
+
+*** Page backward
+#+begin_src emacs-lisp
+(defun org-notes/page-backward () (interactive)
+(let ((win-num (winum-get-number)))
+	    (evil-window-left 1)
+      (pdf-view-scroll-down-or-previous-page)
+	    (winum-select-window-by-number win-num))
+       )
+#+end_src
+
+#+RESULTS:
+: org-notes/page-backward
+
+*** Page forward
+#+begin_src emacs-lisp
+(defun org-notes/page-forward () (interactive)
+(let ((win-num (winum-get-number)))
+	    (evil-window-left 1)
+      (pdf-view-scroll-up-or-next-page)
+	    (winum-select-window-by-number win-num))
+       )
+#+end_src
+
+#+RESULTS:
+: org-notes/page-forward
+
+*** Copy paste link
+#+begin_src emacs-lisp
+(defun org-notes/copy-paste-pdf-link () (interactive)
+(let ((win-num (winum-get-number)))
+  (evil-window-left 1)
+  (org-store-link 1 t)
+  (winum-select-window-by-number win-num)
+  (call-interactively 'org-insert-link)
+  ))
+#+end_src
+
+#+RESULTS:
+: org-notes/copy-pdf-link
+
+*** Copy paste pdf link non interactive
+#+begin_src emacs-lisp
+(defun org-notes/copy-paste-pdf-link-non-interactive () (interactive)
+(let ((win-num (winum-get-number)))
+  (evil-window-left 1)
+  (org-store-link 1 t)
+  (winum-select-window-by-number win-num)
+  (org-insert-last-stored-link 1)
+  ))
+#+end_src
+
+#+RESULTS:
+: org-notes/copy-paste-pdf-link-non-interactive
+
+*** Set page
+#+begin_src emacs-lisp
+(defun org-notes/set-pdf-page () (interactive)
+(let ((win-num (winum-get-number)))
+  (evil-window-left 1)
+  (apollo/set-page-offset)
+  (winum-select-window-by-number win-num)
+  (org-notes/set-pdf-page-from-temp)
+  ))
+#+end_src
+
+#+RESULTS:
+: org-notes/set-pdf-page
+
+*** Setup pdf page
+This is for setting the local pdf offset variable in the pdf buffer from the org notes property.
+#+begin_src emacs-lisp
+(defun org-notes/setup-pdf-page () (interactive)
+(let ((win-num (winum-get-number))
+      (page-offset (string-to-number (car (org-property-values "pdf-page")))))
+  (evil-window-left 1)
+  (setq-local apollo/pdf-real-page-zero page-offset)
+  (evil-window-right 1)))
+#+end_src
+
+#+RESULTS:
+: org-notes/setup-pdf-page
+
+*** Goto page
+#+begin_src emacs-lisp
+(defun org-notes/goto-pdf-page () (interactive)
+(let ((win-num (winum-get-number)))
+  (evil-window-left 1)
+  (apollo/pdf-goto-page)
+  (winum-select-window-by-number win-num)
+  ))
+#+end_src
+
+#+RESULTS:
+: org-notes/goto-pdf-page
+
+
+*** Layout fix pdf scale
+#+begin_src emacs-lisp
+(defun apollo/layout-fix-pdf () (interactive)
+
+       (let ((pdf-scale (string-to-number (car (org-property-values "pdf-scale")))))
+	 (evil-window-left 1)		;goto left
+	 (pdf-view-scale-reset)		;zoom out to reset weird pos
+	 (pdf-view-enlarge pdf-scale)		;zoom in with pdf-scale
+	 (evil-window-right 1))		;go back right
+       )
+#+end_src
+
+#+RESULTS:
+: apollo/layout-fix-pdf
+
+*** Set pdf page from temp
+
+I should probably narrow at the end, but I copied this method from set-pdf-scale which didn't narrow at the end. Maybe it's for a reason maybe it's not, but I'm too lazy to test and risk considering the reward is that it automatically narrows when i set a page, which isn't so often to begin with, so I don't really care. I can narrow manually.
+
+#+begin_src emacs-lisp
+(defun org-notes/set-pdf-page-from-temp ()
+  (interactive)
+  (save-excursion
+    (widen)
+    (if (org-find-property "pdf-page")
+	(save-excursion
+	  (goto-char
+	   (org-find-exact-headline-in-buffer "org-notes: pdf-page"))
+	  (org-set-property "pdf-page" (number-to-string org-notes/pdf-page-temp)))
+      (save-excursion
+	(org-id-goto (org-notes/create-heading-name "pdf-page"))
+	(org-set-property "pdf-page" (number-to-string org-notes/pdf-page-temp))))))
+#+end_src
+
+#+RESULTS:
+: org-notes/set-pdf-page-from-temp
+
+*** Set pdf scale
+#+begin_src emacs-lisp
+(defun org-notes/set-pdf-scale ()
+  (interactive)
+  (save-excursion
+    (widen)
+    (if (org-find-property "pdf-scale")
+	(save-excursion
+	  (goto-char (org-find-exact-headline-in-buffer "org-notes: pdf-scale"))
+	  (org-set-property "pdf-scale" (ivy-read "pdf-scale: " '())))
+      (save-excursion
+	(org-id-goto (org-notes/create-heading-name "pdf-scale"))
+	(org-set-property "pdf-scale" (ivy-read "pdf-scale: " '()))))))
+#+end_src
+
+#+RESULTS:
+: org-notes/set-pdf-scale
+
+
+** Create org notes heading name
+#+begin_src emacs-lisp
+(defun org-notes/create-heading-name (name)
+  (interactive)
+  (save-excursion
+    (widen)
+    (if (not (org-find-property "org-notes-id" "1"))
+	(progn
+	  (goto-char (max-char))
+	  (insert "\n* org-notes")
+	  (org-set-property "org-notes-id" "1")))
+    (goto-char (max-char))
+    (insert (format "\n** %s: %s" "org-notes" name))
+    (org-id-get-create)))
+#+end_src
+
+#+RESULTS:
+: org-notes/create-heading-name
+
+
+** Create org notes heading
+#+begin_src emacs-lisp
+(defun org-notes/create-heading ()
+  (interactive)
+  (if (evil-visual-state-p)
+      (progn
+	(kill-region evil-visual-beginning evil-visual-end)
+	(insert (format
+		 "[[org-notes:%s][%s]]"
+		 (org-notes/create-heading-name (car kill-ring))
+		 (car kill-ring))))
+    (let ((name (ivy-read "name of heading: " '())))
+      (insert (format
+	       "[[org-notes:%s][%s]]"
+	       (org-notes/create-heading-name name)
+	       name))))
+  (org-notes/narrow-to-id))
+#+end_src
+
+#+RESULTS:
+: org-notes/create-heading
+
+
+** Create heading with page
+#+begin_src emacs-lisp
+(defun org-notes/create-heading-with-page () (interactive)
+       (org-notes/create-heading)
+       (widen)
+       (save-excursion
+	 (evil-goto-line)
+	 (org-notes/copy-paste-pdf-link-non-interactive))
+       (org-narrow-to-subtree))
+#+end_src
+
+#+RESULTS:
+: org-notes/create-heading-with-page
+
+
+
+
+
+
+
+
+** Selection to new heading
+#+begin_src emacs-lisp
+(defun org-notes/selection-to-new-heading ()
+  (interactive)
+  (if (evil-visual-state-p) (kill-region evil-visual-beginning evil-visual-end))
+  (evil-exit-visual-state)
+  (org-notes/create-heading)
+  (widen)
+  (save-excursion
+    (evil-goto-line)
+    (save-excursion
+      (insert (car kill-ring)))
+    (apollo/org-latex-preview))
+  (org-narrow-to-subtree))
+#+end_src
+
+#+RESULTS:
+: org-notes/selection-to-new-heading
+
+** Org notes history
+#+begin_src emacs-lisp
+(setq org-notes/point-history '())
+
+
+(defun org-notes/set-base-point ()
+  (interactive)
+  (save-excursion
+    (widen)
+    (let ((base-point (point)))
+      (if (org-find-property "base-point")
+	  (save-excursion
+	    (goto-char (org-find-exact-headline-in-buffer "org-notes: base-point"))
+	    (org-set-property "base-point" (number-to-string base-point)))
+	(save-excursion
+	  (org-id-goto (org-notes/create-heading-name "base-point"))
+	  (org-set-property "base-point" (number-to-string base-point))))))
+  (org-notes/narrow-to-id))
+
+
+
+(defun org-notes/previous-point ()
+  (interactive)
+  (widen)
+  (if org-notes/point-history
+      (goto-char (pop org-notes/point-history))
+    (goto-char (string-to-number (car (org-property-values "base-point")))))
+  (org-notes/narrow-to-id))
+#+end_src
+
+
+** Org notes id follow
+#+begin_src emacs-lisp
+(defcustom org-notes-protocol "org-notes"
+  "Protocol identifier for pomodoro links."
+  :group 'org-notes
+  :type 'string)
+
+
+(defun org-notes-follow (id)
+  ; Följande parantes är basically: (add-to-list-local 'org-notes/point-history (point))
+  (if (member (point) org-notes/point-history)
+      org-notes/point-history
+    (setq-local
+     org-notes/point-history
+     (cons (point) org-notes/point-history)))
+  (org-id-goto id)
+  (org-notes/narrow-to-id))
+
+
+(org-link-set-parameters org-notes-protocol :follow #'org-notes-follow)
+
+#+end_src
+
+#+RESULTS:
+| :follow | org-notes-follow |
+
+
+** copy-whole-link-at-point
+#+begin_src emacs-lisp
+(defun org-notes/copy-whole-link-at-point ()
+  (interactive)
+  (setq org-notes/copy-end (+ 2 (re-search-forward "\\]\\]")))
+  (setq org-notes/copy-start (re-search-backward "\\[\\["))
+  (copy-region-as-kill org-notes/copy-start apollo/org-notes/copy-end))
+
+#+end_src
+
+#+RESULTS:
+: org-notes/copy-whole-link-at-point
+
+
+** Copy paste link
+
+#+begin_src emacs-lisp
+(defun org-notes/copy-paste-link ()
+  (interactive)
+  (widen)
+  (ivy-read
+   "select link: "
+   (org-element-map
+       (org-element-parse-buffer)
+       'link
+     (lambda (link) (cons (substring (format "%s" (org-element-contents link)) 1 -1) link)))
+   :action (lambda (x)
+	     (let ((obj (cdr x)))
+	       (insert
+		(buffer-substring
+		 (org-element-property :begin obj)
+		 (org-element-property :end obj))))))
+  (org-narrow-to-subtree))
+#+end_src
+
+#+RESULTS:
+: org-notes/copy-paste-link
+
+** Ivy open link advanced
+#+begin_src emacs-lisp
+(defun org-notes/ivy-open-link-advanced ()
+  (interactive)
+  (widen)
+  (save-window-excursion
+    (save-excursion
+      (goto-char 0)
+      (re-search-forward
+       (regexp-quote
+	(car (cdr (assoc :uri (text-properties-at
+			       0
+			       (ivy-read
+				"select link: "
+				(org-notes/re-seq
+				 org-notes/linkreg
+				 (buffer-string)))))))))
+      (setq org-notes/before-link-point (point))
+      (setq org-notes/before-buffer-name (buffer-name))
+      (link-hint-open-link-at-point)
+      (setq org-notes/after-link-point (point))
+      (setq org-notes/after-buffer-name (buffer-name))
+      (setq org-notes/page-if-pdf (ignore-errors (pdf-view-current-page)))))
+  (if (string= org-notes/before-buffer-name apollo/org-notes/after-buffer-name)
+      (if (/= org-notes/before-link-point apollo/org-notes/after-link-point)
+	  (progn
+	    (goto-char org-notes/after-link-point)
+	    (org-notes/narrow-to-id)))
+    (if org-notes/page-if-pdf
+	(progn
+	  (let ((win-num (winum-get-number)))
+	    (evil-window-left 1)
+	    (switch-to-buffer org-notes/after-buffer-name)
+	    (pdf-view-goto-page org-notes/page-if-pdf)
+	    (winum-select-window-by-number win-num)
+	    (org-notes/narrow-to-id)))
+      (switch-to-buffer org-notes/after-buffer-name))))
+#+end_src
+
+#+RESULTS:
+: org-notes/ivy-open-link
+
+** ivy open link
+
+#+begin_src emacs-lisp
+(defun org-notes/ivy-open-link ()
+  (interactive)
+  (push (point) org-notes/point-history)
+  (widen)
+  (let ((buffer-element (org-element-parse-buffer)))
+    (org-notes/narrow-to-id)
+    (ivy-read
+     "select heading: "
+     (org-element-map
+	 buffer-element
+	 'link
+       (lambda (link) (cons (substring (format "%s" (org-element-contents link)) 1 -1) (org-element-property :path link))))
+     :action (lambda (x)
+	       (widen)
+	       (org-id-goto (cdr x))
+	       (org-notes/narrow-to-id)))))
+#+end_src
+
+#+RESULTS:
+: org-notes/ivy-open-link
+
+** Set pdf window
+#+begin_src emacs-lisp
+(setq pdf-window 1)
+(defun org-notes/set-pdf-window ()
+  (interactive)
+  (setq pdf-window (ivy-read "Window number: " '())))
+#+end_src
+
+#+RESULTS:
+: org-notes/set-pdf-window
+
+
+** Avy Open link command
+#+begin_src emacs-lisp
+(defun org-notes/avy-open-link ()
+  (interactive)
+  (widen)
+  (save-window-excursion
+    (setq first-point (point))
+    (setq original-window (winum-get-number))
+    (link-hint-open-link)
+    (setq org-links-window (winum-get-number))
+    (setq link-buffer (buffer-name))
+    (setq after-point (point))
+    (setq after-point-is-link-p (link-hint--org-link-at-point-p))
+    (setq page-if-pdf (ignore-errors (pdf-view-current-page))))
+  (save-window-excursion
+    (winum-select-window-by-number org-links-window)
+    (setq org-links-buffer (buffer-name)))
+
+(if (string= org-links-buffer link-buffer)
+    (if after-point-is-link-p
+	(progn
+	  (winum-select-window-by-number original-window)
+	  (goto-char first-point))
+      (progn
+	(winum-select-window-by-number original-window)
+	(switch-to-buffer link-buffer)
+	(goto-char after-point)
+	(org-notes/narrow-to-id)))
+  (if page-if-pdf
+      (progn
+	(winum-select-window-by-number pdf-window)
+	(switch-to-buffer link-buffer)
+	(pdf-view-goto-page page-if-pdf)
+	(winum-select-window-by-number original-window)
+	(goto-char first-point))
+    (progn
+      (winum-select-window-by-number original-window)
+      (switch-to-buffer link-buffer))))
+(if (eq major-mode 'org-mode) (org-notes/narrow-to-id)))
+#+end_src
+
+#+RESULTS:
+: org-notes/avy-open-link
+
+
+
+
+Först location (innan man sätter igång kommandot) 
+
+org buffer men link location 
+
+
+
+** Set pdf window
+#+begin_src emacs-lisp
+(setq pdf-window 1)
+(defun org-notes/set-pdf-window ()
+  (interactive)
+  (setq pdf-window (ivy-read "Window number: " '())))
+#+end_src
+
+#+RESULTS:
+: org-notes/set-pdf-window
+
+
+** Heading id at point
+#+begin_src emacs-lisp
+(defun org-notes/heading-id-at-point ()
+  (interactive)
+  (org-element-property :ID (org-element-at-point)))
+#+end_src
+
+#+RESULTS:
+: org-notes/heading-id-at-point
+
+** narrow-to-id
+#+begin_src emacs-lisp
+(defun org-notes/narrow-to-id ()
+  (interactive)
+  (save-excursion
+    (if (not (org-notes/heading-id-at-point))
+	(ignore-errors (re-search-backward ":ID:")))
+    (org-narrow-to-subtree)))
+#+end_src
+
+#+RESULTS:
+: org-notes/narrow-to-id
+
+
+
+
+** Create question
+#+begin_src emacs-lisp
+(defun org-notes/create-question ()
+  (interactive)
+  (let ((question (ivy-read "Question: " '())))
+    (save-excursion
+      (widen)
+      (if (not (org-find-property "org-notes-id" "1"))
+	  (progn
+	    (goto-char (max-char))
+	    (insert "\n* org-notes")
+	    (org-set-property "org-notes-id" "1")))
+      (goto-char (max-char))
+      (insert (format "\n** %s %s" "QUESTION" question))
+      (org-id-get-create))
+    (org-notes/narrow-to-id)))
+#+end_src
+
+#+RESULTS:
+: org-notes/create-question
+
+,qq
+
+** select tags with id
+#+begin_src emacs-lisp
+(defun org-notes/select-tags-with-id (tags fun)
+  (widen)
+  (let ((buffer-element (org-element-parse-buffer)))
+    (org-notes/narrow-to-id)
+    (ivy-read "Select question: " 
+	      (mapcar (lambda (x) (cons (nth 1 x) (nth 2 x)))
+		      (remove-if (lambda (x) (not (member (car x) tags)))
+				 (org-element-map buffer-element 'headline
+				   (lambda (x) (list (org-element-property :todo-keyword x) (substring (format "%s" (org-element-property :title x)) 1 -1)
+						     (org-element-property :ID x)
+						     )))))
+	      :action fun)))
+#+end_src
+
+#+RESULTS:
+: org-notes/select-tags-with-id
+
+** open questions
+#+begin_src emacs-lisp
+(defun org-notes/open-questions () (interactive)
+       (org-notes/select-tags-with-id
+	'("QUESTION")
+	(lambda (x)
+	  (push (point) org-notes/point-history)
+	  (widen)
+	  (org-id-goto (cdr x))
+	  (org-narrow-to-subtree))))
+#+end_src
+
+#+RESULTS:
+: org-notes/open-questions
+
+,q,
+
+** All questions
+
+#+begin_src emacs-lisp
+(defun org-notes/all-questions () (interactive)
+       (org-notes/select-tags-with-id
+	'("QUESTION" "ANSWERED")
+	(lambda (x)
+	  (push (point) org-notes/point-history)
+	  (widen)
+	  (org-id-goto (cdr x))
+	  (org-narrow-to-subtree))))
+#+end_src
+
+#+RESULTS:
+: org-notes/all-questions
+
+,qa
+
+
+** View open todos
+#+begin_src emacs-lisp
+(defun org-notes/view-open-todos () (interactive)
+       (org-notes/select-tags-with-id
+	'("TODO")
+	(lambda (x)
+	  (push (point) org-notes/point-history)
+	  (widen)
+	  (org-id-goto (cdr x))
+	  (org-narrow-to-subtree))))
+#+end_src
+
+#+RESULTS:
+: org-notes/view-open-todos
+
+, q t
+
+** Apollo view closed todos
+#+begin_src emacs-lisp
+(defun org-notes/view-closed-todos () (interactive)
+       (org-notes/select-tags-with-id
+	'("DONE")
+	(lambda (x)
+	  (push (point) org-notes/point-history)
+	  (widen)
+	  (org-id-goto (cdr x))
+	  (org-narrow-to-subtree))))
+#+end_src
+
+, q d
+
+
+
+** Get all exercises
+Kom ihåg att jag använder dash.el
+#+begin_src emacs-lisp
+(defun org-notes/get-all-exercises () (interactive)
+(-filter
+ (lambda (x) (string-equal "exe" (nth 2 (nth 1 x))))
+ (org-element-map
+     (org-element-parse-buffer)
+     'headline
+   (lambda (headline)
+     (list
+      (org-element-property :begin headline)
+      (s-split-words (org-element-property :raw-value headline))
+      (org-element-map
+	  headline
+	  'node-property
+	(lambda (x)
+	  (list
+	   (org-element-property :key x)
+	   (org-element-property :value x))))
+      (org-element-property :todo-keyword headline))))))
+;(org-notes/get-all-exercises)
+#+end_src
+
+#+RESULTS:
+
+** All Exercises progress
+Progress variable
+#+begin_src emacs-lisp
+(setq org-notes/all-exercises-progress "No org-notes project")
+#+end_src
+
+#+begin_src emacs-lisp
+(defun org-notes/all-exercises-progress-fetch () (interactive)
+       (let* ((all-exercises (org-notes/get-all-exercises))
+	      (total-exercises (length all-exercises))
+	      (done-exercises (length (-filter (lambda (x) (string-equal "DONE" (nth 3 x))) all-exercises))))
+	 ; We prevent division by zero by checking if all-exercises is non nil
+	 (setq org-notes/all-exercises-progress (if all-exercises  (/ (* 1000 done-exercises) total-exercises) 0)))) 
+;(org-notes/all-exercises-progress-fetch)
+#+end_src
+
+#+RESULTS:
+: 0
+
+
+** View all exercises
+#+begin_src emacs-lisp
+(defun org-notes/view-all-exercises () (interactive)
+       (widen)
+       (org-notes/all-exercises-progress-fetch)
+       (let* ((exercises (org-notes/get-all-exercises))
+	      (join-list (lambda (x) (mapconcat 'identity x " ")))
+	      (title-exercises-alist
+	       (-map (lambda (x) (list (funcall join-list (cdr (nth 1 x))) (car x))) exercises)))
+	 (ivy-read
+	  "Select exercise"
+	  title-exercises-alist
+	  :action (lambda (x) (goto-char (car (last x))) ))
+     (org-narrow-to-subtree)
+	 title-exercises-alist))
+#+end_src
+
+#+RESULTS:
+: org-notes/view-all-exercises
+
+
+
+** View open exercises
+
+#+begin_src emacs-lisp
+(defun org-notes/view-open-exercises () (interactive)
+       (widen)
+       (org-notes/all-exercises-progress-fetch)
+       (let* ((all-exercises (org-notes/get-all-exercises))
+	      (open-exercises (-filter (lambda (x) (not  (string-equal "DONE" (nth 3 x)))) all-exercises))
+	      (join-list (lambda (x) (mapconcat 'identity x " ")))
+	      (title-exercises-alist
+	       (-map (lambda (x) (list (funcall join-list (cdr (nth 1 x))) (car x))) open-exercises)))
+	 (ivy-read
+	  "Select exercise"
+	  title-exercises-alist
+	  :action (lambda (x) (goto-char (car (last x))) ))
+     (org-narrow-to-subtree)
+	 title-exercises-alist))
+#+end_src
+
+#+RESULTS:
+: org-notes/view-open-exercises
+
+
+
+
+** goto mark line
+
+#+begin_src emacs-lisp
+(evil-define-command org-notes/goto-mark-line (char &optional noerror)
+  "Go to the line of the marker specified by CHAR."
+  :keep-visual t
+  :repeat nil
+  :type line
+  :jump t
+  (interactive (list (read-char)))
+  (widen)
+  (push (point) org-notes/point-history)
+  (evil-goto-mark char noerror)
+  (evil-first-non-blank)
+  (org-narrow-to-subtree))
+#+end_src
+
+#+RESULTS:
+: org-notes/goto-mark-line
+
+
+** Smart follow link
+
+#+begin_src emacs-lisp
+(defun org-notes/smart-follow-link () (interactive)
+       (if (equal (seq-subseq (s-split-words (buffer-file-name)) -2) '("notes" "org"))
+	   (org-notes/avy-open-link)
+       (link-hint-open-link)
+       ))
+#+end_src
+
+** Smart return
+
+#+begin_src emacs-lisp
+(defun org-notes/smart-return () (interactive)
+       (if (equal (seq-subseq (s-split-words (buffer-file-name)) -2)
+		  '("notes" "org"))
+	   (org-notes/previous-point)
+	 (previous-buffer)))
+#+end_src
+
 
